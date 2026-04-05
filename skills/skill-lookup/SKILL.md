@@ -1,76 +1,88 @@
 ---
 name: skill-lookup
-description: Activates when the user asks about Agent Skills, wants to find reusable AI capabilities, needs to install skills, or mentions skills for Claude. Use for discovering, retrieving, and installing skills.
+description: Activates when the user asks about Agent Skills, reusable prompts, or extending the assistant with capabilities from prompts.chat. Use for discovering, retrieving, and saving content via the prompts.chat MCP (search_prompts, get_prompt). Applies to Cursor skills and Claude-style skill folders when converting or installing retrieved material.
 ---
 
-When the user needs Agent Skills, wants to extend Claude's capabilities, or is looking for reusable AI agent components, use the prompts.chat MCP server.
+When the user wants reusable instructions, agent-style prompts, or Cursor **Agent Skills**, use the **prompts.chat** MCP server (`prompts.chat` in Cursor MCP settings). That service is the **[prompts.chat](https://prompts.chat)** library ([open-source project](https://github.com/f/prompts.chat)): community **prompts** you can search and fetch. Treat highly structured results as candidates to turn into a local **`SKILL.md`** if the user wants a persistent skill.
 
 ## When to Use This Skill
 
-Activate this skill when the user:
+Activate when the user:
 
-- Asks for Agent Skills ("Find me a code review skill")
-- Wants to search for skills ("What skills are available for testing?")
-- Needs to retrieve a specific skill ("Get skill XYZ")
-- Wants to install a skill ("Install the documentation skill")
-- Mentions extending Claude's capabilities with skills
+- Asks to find prompts or skills (“code review”, “testing”, “documentation”, etc.)
+- Wants to search what is available on prompts.chat
+- Wants the full text of a specific item by ID
+- Wants to **save** a new prompt (requires authentication — see below)
+- Wants to install or adapt retrieved content as a **Cursor skill** (folder + `SKILL.md`)
 
-## Available Tools
+## Available Tools (prompts.chat MCP)
 
-Use these prompts.chat MCP tools:
+Call only tools that the connected MCP actually exposes. The standard **`@fkadev/prompts.chat-mcp`** / hosted API surface uses:
 
-- `search_skills` - Search for skills by keyword
-- `get_skill` - Get a specific skill by ID with all its files
+| Tool | Purpose |
+|------|--------|
+| **`search_prompts`** | Search public prompts by keyword; filter by type, category, tag |
+| **`get_prompt`** | Fetch one prompt by ID (body text, metadata, template variables like `${var}`) |
+| **`save_prompt`** | Save a prompt to the user’s account (**requires `PROMPTS_API_KEY`** in local MCP env — not used for casual search/fetch) |
 
-## How to Search for Skills
+**Deprecated names (do not use):** `search_skills`, `get_skill` — they are not registered on this server.
 
-Call `search_skills` with:
+## How to Search
 
-- `query`: The search keywords from the user's request
-- `limit`: Number of results (default 10, max 50)
-- `category`: Filter by category slug (e.g., "coding", "automation")
-- `tag`: Filter by tag slug
+Call **`search_prompts`** with:
 
-Present results showing:
+- **`query`**: Keywords from the user’s request
+- **`limit`**: Optional cap on results (use server defaults if unsure)
+- **Filters** as supported by the tool (e.g. type, category, tag)
+
+Present results clearly:
+
 - Title and description
-- Author name
-- File list (SKILL.md, reference docs, scripts)
-- Category and tags
-- Link to the skill
+- Author (if shown)
+- Category / tags (if shown)
+- Link or ID so the user can say “get that one”
 
-## How to Get a Skill
+Note: The catalog is **prompt-centric**. Items may be single prompt texts, not multi-file skill bundles. If the user needs a **Cursor skill**, offer to turn the best match into a **`SKILL.md`** with proper YAML frontmatter (`name`, `description`).
 
-Call `get_skill` with:
+## How to Retrieve Full Content
 
-- `id`: The skill ID
+Call **`get_prompt`** with:
 
-Returns the skill metadata and all file contents:
-- SKILL.md (main instructions)
-- Reference documentation
-- Helper scripts
-- Configuration files
+- **`id`**: The prompt ID from search results
 
-## How to Install a Skill
+Use the returned text as the basis for answers, summarization, or for writing a local skill file.
 
-When the user asks to install a skill:
+## How to Install as a Cursor Agent Skill
 
-1. Call `get_skill` to retrieve all files
-2. Create the directory `.claude/skills/{slug}/`
-3. Save each file to the appropriate location:
-   - `SKILL.md` → `.claude/skills/{slug}/SKILL.md`
-   - Other files → `.claude/skills/{slug}/{filename}`
+When the user asks to “install” or keep something as a skill:
 
-## Skill Structure
+1. Use **`get_prompt`** (or the chosen search hit) to get the full text.
+2. Choose a **folder name** (lowercase, hyphens) matching the skill `name` in frontmatter.
+3. Write:
 
-Skills contain:
-- **SKILL.md** (required) - Main instructions with frontmatter
-- **Reference docs** - Additional documentation files
-- **Scripts** - Helper scripts (Python, shell, etc.)
-- **Config files** - JSON, YAML configurations
+   **User-wide:** `~/.cursor/skills/{skill-name}/SKILL.md`  
+   **Project-only:** `{workspace}/.cursor/skills/{skill-name}/SKILL.md`
+
+4. Ensure **`SKILL.md`** starts with:
+
+   ```yaml
+   ---
+   name: skill-name
+   description: When the agent should use this skill (what + when).
+   ---
+   ```
+
+   Put the retrieved instructions (edited for clarity) in the markdown body.
+
+5. If the source included extra files (rare for plain prompts), mirror the same paths under that folder.
+
+## Claude Code path (optional)
+
+If the user uses **Claude Code** instead: skill folders are often **`./.claude/skills/{skill-name}/`** with the same `SKILL.md` layout.
 
 ## Guidelines
 
-- Always search before suggesting the user create their own skill
-- Present search results in a readable format with file counts
-- When installing, confirm the skill was saved successfully
-- Explain what the skill does and when it activates
+- Prefer **`search_prompts`** before inventing a skill from scratch.
+- After **`get_prompt`**, summarize what the prompt is for and when to use it.
+- For **`save_prompt`**, only attempt if the user has configured API access; otherwise say saving needs auth.
+- After installing a skill, remind the user to **restart Cursor** (or reload window) if the new skill does not appear in `@` yet.
